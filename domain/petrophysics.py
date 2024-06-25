@@ -1,38 +1,9 @@
 import numpy as np
-import client.services.log_processing_service as lps
-
 
 class petrophysics:
     '''
     Petrophysics basic equations
     '''
-
-    def porosity_from_density(rhob, rhob_matrix=2.65, rhob_fluid=1, limit_result=True, low_limit=0, high_limit=0.5):
-        """
-        Calculates the porosity from the bulk density using the petrophysics equation.
-
-        Parameters:
-            rhob (array): The bulk density value.
-            rhob_matrix (float): The density value of the matrix.
-            rhob_fluid (float): The density value of the fluid.
-
-        Returns:
-            float: The calculated porosity value.
-
-        Raises:
-            None
-        """
-
-        if type(rhob) == 'client.objects.log.Log' and type(rhob_matrix) == 'client.objects.log.Log' and type(rhob_fluid) == 'client.objects.log.Log':
-            rhob, rhob_matrix, rhob_fluid = lps.LogProcessingService.interpolate_to_common_reference([
-                                                                                                     rhob, rhob_matrix, rhob_fluid])
-        por = (rhob_matrix - rhob) / (rhob_matrix - rhob_fluid)
-
-        if limit_result is True:
-            return np.clip(por, low_limit, high_limit)
-        else:
-            return por
-        return por
 
     def shale_volume_from_gammaray(log, min_value, max_value, method="linear", limit_result=True, low_limit=0, high_limit=1):
         """
@@ -187,19 +158,59 @@ class petrophysics:
         else:
             return result
 
-    def vsh_from_rt(rt_log, rt_clean, rt_shale):
+    def shale_vol_from_rt(rt_log, rt_clean, rt_shale):
+        """
+        Calculate the shale volume from the resistivity logs.
+
+        Parameters:
+            rt_log (float): The resistivity log value.
+            rt_clean (float): The clean resistivity log value.
+            rt_shale (float): The shale resistivity log value.
+
+        Returns:
+            float: The calculated shale volume.
+
+        Calculates the shale volume based on the resistivity logs. The formula used is:
+
+        vsh = (rt_shale / rt_log) * (rt_clean - rt_log) / (rt_clean - rt_shale)
+
+        If rt_log is greater than 2 * rt_shale, the shale volume is calculated using the formula:
+
+        vsh = 0.5 * (2 * vrt) ** (0.67 * (vrt + 1))
+
+        Otherwise, the shale volume is simply vrt.
+
+        Note:
+            - The resistivity logs are assumed to be in ohmm.
+            - The shale volume is returned in decimal units.
+        """
+        
         vrt = (rt_shale/rt_log)*(rt_clean-rt_log)/(rt_clean-rt_shale)
         if (rt_log > 2 * rt_shale):
-            vclrt = 0.5 * (2 * vrt) ** (0.67*(vrt+1))
+            vsh = 0.5 * (2 * vrt) ** (0.67*(vrt+1))
         else:
-            vclrt = vrt
-        return vclrt
+            vsh = vrt
+        return vsh
 
-    def vsh_nd(neut_log, den_log, neut_clean1, den_clean1, neut_clean2, den_clean2, neut_clay, den_clay):
+    def shale_vol_from_neut_den(neut_log, den_log, neut_clean1, den_clean1, neut_clean2, den_clean2, neut_clay, den_clay):
+        """
+        A function to calculate shale volume based on neutron-density logs.
+        Parameters:
+            neut_log (float): Neutron log value.
+            den_log (float): Density log value.
+            neut_clean1 (float): Neutron clean1 value.
+            den_clean1 (float): Density clean1 value.
+            neut_clean2 (float): Neutron clean2 value.
+            den_clean2 (float): Density clean2 value.
+            neut_clay (float): Neutron clay value.
+            den_clay (float): Density clay value.
+        Returns:
+            float: The calculated shale volume.
+        """
         term1 = (den_clean2-den_clean1)*(neut_log-neut_clean1)-(den_log-den_clean1)*(neut_clean2-neut_clean1)
         term2 = (den_clean2-den_clean1)*(neut_clay-neut_clean1)-(den_clay-den_clean1)*(neut_clean2-neut_clean1)
-        vclnd = term1/term2
-        return vclnd
+        return term1/term2
+    
 
     def vclay_from_vshale(vshale, multiplier=1.2):
         """
@@ -220,17 +231,109 @@ class petrophysics:
         """
         return vshale * multiplier
 
+
+    def porosity_from_density(rhob, rhob_matrix=2.65, rhob_fluid=1, limit_result=True, low_limit=0, high_limit=0.5):
+        """
+        Calculates the porosity from the bulk density using the petrophysics equation.
+
+        Parameters:
+            rhob (array): The bulk density value.
+            rhob_matrix (float): The density value of the matrix.
+            rhob_fluid (float): The density value of the fluid.
+
+        Returns:
+            float: The calculated porosity value.
+
+        Raises:
+            None
+        """
+
+        por = (rhob_matrix - rhob) / (rhob_matrix - rhob_fluid)
+
+        if limit_result is True:
+            return np.clip(por, low_limit, high_limit)
+        else:
+            return por
+        return por
+    
+    
+    def porosity_effective_from_neutron(neut_por_log, vsh_log, shale_porosity=0.3):
+        """
+        Calculate the effective porosity from a neutron porosity log and a shale log.
+
+        Parameters:
+            neut_por_log (float or array-like): The neutron porosity log values.
+            vsh_log (float or array-like): The shale log values.
+            shale_porosity (float, optional): The porosity value of the shale. Defaults to 0.3.
+
+        Returns:
+            float: The calculated effective porosity.
+        """
+        return neut_por_log - (vsh_log*shale_porosity)
+    
+    def porosity_effective_from_sonic(sonic_por_log, vsh_log, shale_porosity=0.3):
+        """
+        Calculate the effective porosity from a sonic porosity log and a shale log.
+
+        Parameters:
+            sonic_por_log (float or array-like): The sonic porosity log values.
+            vsh_log (float or array-like): The shale log values.
+            shale_porosity (float, optional): The porosity value of the shale. Defaults to 0.3.
+
+        Returns:
+            float: The calculated effective porosity.
+        """
+        return sonic_por_log - (vsh_log*shale_porosity)
+
+
+
     def sw_archie(porosity, rt, rw, archie_a = 1, archie_m = 2, archie_n = 2):
-        '''
+        """
+        Calculate the water saturation using the Archie equation.
+
+        Parameters:
+            porosity (float): Porosity of the formation.
+            rt (float): True resistivity of the formation (ohmm).
+            rw (float): Formation water resistivity (ohmm).
+            archie_a (float, optional): Archie's parameter A (tortuosity factor, unitless). Defaults to 1.
+            archie_m (float, optional): Archie's parameter M (cementation constant, unitless). Defaults to 2.
+            archie_n (float, optional): Archie's parameter N (water saturation exponent, unitless). Defaults to 2.
+
+        Returns:
+            float: Water saturation calculated using the Archie equation.
+
         References:
-        Archimedes, R. C. (1994) Shale fluid properties. 3rd ed. London: John Wiley and Sons.
-        https://www.spec2000.net/01-quickmath.htm
-        '''
+        Archie, G. E., (1942). The Electrical Resistivity Log as an Aid in Determining Some 
+        Reservoir Characteristics. SPE Journal, 146 (1), pp. 54-62.
+        """
+        
         sw = ((archie_a / (porosity ** archie_m)) * (rw/rt))**(1/archie_n)
         return sw
 
 
     def sw_simandoux(phie, rt, rw, vsh, rt_shale, archie_a = 1, archie_m = 2, archie_n = 2):
+        """
+        Calculate the water saturation using the Simandoux equation.
+
+        Parameters:
+            phie (float): Effective Porosity (fraction)
+            rt (float): True Resistivity (ohmm)
+            rw (float): Formation Water Resistivity (ohmm)
+            vsh (float): Bulk Volume Fraction of Shale (fraction)
+            rt_shale (float): Shale Resistivity (ohmm)
+            archie_a (float, optional): Archie's parameter A (tortuosity factor, unitless). Defaults to 1.
+            archie_m (float, optional): Archie's parameter M (cementation constant, unitless). Defaults to 2.
+            archie_n (float, optional): Archie's parameter N (water saturation exponent, unitless). Defaults to 2.
+
+        Returns:
+            float: Water saturation calculated using the Simandoux equation (fraction)
+
+        References:
+            Simandoux, P. (1963). Mesuresd ielectriques en milieu poreux, application a mesure des 
+            saturations en eau, Etude du Comportment des massifs Argileux. Supplementary Issue, 
+            Revue de I’Institut Francais du Petrol
+        """
+
         A = (1 - vsh) * archie_a * rw / (phie ** archie_m)
         B = A * vsh / (2 * rt_shale)
         C = A / rt
@@ -238,21 +341,37 @@ class petrophysics:
         sw = ((B ** 2 + C)**0.5 - B) ** (2 / archie_n)
         return sw
 
-    def sw_waxman_smits(swb,fluid_density, salinity):
-        '''
-        Solve Qv from Swb based on Hill, Shirley and Klein technique (1979)
-        Parameters
-        ----------
-        fluid_density : float
-            Density of the fluid
-        Salinity : float
-            Salinity of the fluid in parts per million (ppm)
-         
-        References:
-        Hill, H.J., Shirley, O.J., Klein, G.E.: “Bound Water in Shaley Sands - Its Relation to Qv and Other Formation Properties”, Log Analyst, May-June 1979.
-        '''
-        qv = swb/(0.6425/((fluid_density*salinity)**0.5) + 0.22)
-        # m* apparent = log10(Rw /(Rt*(1 + Rw*B*Qv))) / log10(PHIT)
+ 
+    def sw_waxman_smits(phie, vsh, resd, rw_ft, ft, a=1, m=2, n=2, dens_matrix=2.65):
+        """
+        Calculate water saturation from CEC method using the Waxman-Smits equation.
+
+        Parameters:
+            phie (float): Effective porosity (fractional).
+            vsh (float): Shale volume (fractional).
+            resd (float): Deep resistivity log reading (ohmm).
+            rw_ft (float): Water resistivity at formation temperature (ohmm).
+            ft (float): Formation temperature (degrees Fahrenheit or Celsius).
+            rw: Water resistivity at 25 degrees celsius (ohm-m)
+            a (float, optional): Formation factor (unitless). Default is 1.
+            m (float, optional): Cementation exponent (unitless). Default is 2.
+            n (float, optional): Saturation exponent (unitless). Default is 2.
+            dens_matrix (float, optional): Matrix density (gm/cc or kg/m3). Default is 2.65.
+
+        Returns:
+            sw_cec (float): Water saturation from CEC method (fractional).
+        """
+        if phie > 0:
+            cec = 10 ** (1.9832 * vsh - 2.4473)
+            rw = (rw_ft) * (ft + 21.5) / 46.5
+            b = 4.6 * (1 - 0.6 * np.exp(-0.77 / rw))
+            f = a / (phie ** m)
+            qv = cec * (1 - phie) * dens_matrix / phie
+            sw_cec = 0.5 * ((- b * qv * rw) + ((b * qv * rw) ** 2 + 4 * f * rw_ft / resd) ** 0.5) ** (2 / n)
+        else:
+            sw_cec = 1
+        return sw_cec
+
 
 
 
