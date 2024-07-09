@@ -1,11 +1,13 @@
 import numpy as np
+import client.services.log_processing_service as lps
 
-class petrophysics:
+
+class shale_volume:
     '''
     Petrophysics basic equations
     '''
 
-    def shale_volume_from_gammaray(log, min_value, max_value, method="linear", limit_result=True, low_limit=0, high_limit=1):
+    def shale_volume_from_gammaray(gr_log, gr_clean, gr_shale, method="linear", limit_result=True, low_limit=0, high_limit=1):
         """
         Calculates the volume of clay or shale from a gamma ray log.
 
@@ -18,11 +20,11 @@ class petrophysics:
 
         Parameters
         ----------
-        minvalue : float
+        gr_clean : float
             Value representing a 100% clean interval.
-        maxvalue : float
+        gr_shale : float
             Value representing either 100% clay or 100% shale.
-        inputvalue : float
+        gr_log : float
             Gamma ray value from log measurements.
         method : string
             Select method for calculating VClay or VShale:
@@ -31,8 +33,7 @@ class petrophysics:
             - larionov-old
             - steiber
             - clavier
-
-                By default: linear
+            By default: linear
         limit_result : bool, optional
             Apply limits to the result value.
             By default False
@@ -57,7 +58,7 @@ class petrophysics:
         https://www.researchgate.net/post/Volume_fraction_of_shale_full_reference_for_Clavier_1971
         """
 
-        vsh = (log - min_value)/(max_value - min_value)
+        vsh = (gr_log - gr_clean)/(gr_shale - gr_clean)
 
         if method == "linear":
             result = vsh
@@ -66,7 +67,7 @@ class petrophysics:
         elif method == "larionov-old":
             result = 0.33 * ((2**(2 * vsh)) - 1)
         elif method == "steiber":
-            result = igr / (3 - 2 * vsh)
+            result = vsh / (3 - 2 * vsh)
         elif method == "clavier":
             result = 1.7 - ((3.38-(vsh + 0.7)**2)**0.5)
         else:
@@ -158,59 +159,30 @@ class petrophysics:
         else:
             return result
 
-    def shale_vol_from_rt(rt_log, rt_clean, rt_shale):
+    def vsh_from_rt(rt_log, rt_clean, rt_shale):
         """
-        Calculate the shale volume from the resistivity logs.
+        Calculates the volume of shale from the ratio of resistivity logs.
 
         Parameters:
             rt_log (float): The resistivity log value.
-            rt_clean (float): The clean resistivity log value.
-            rt_shale (float): The shale resistivity log value.
+            rt_clean (float): The resistivity log value of clean formation.
+            rt_shale (float): The resistivity log value of shale formation.
 
         Returns:
-            float: The calculated shale volume.
-
-        Calculates the shale volume based on the resistivity logs. The formula used is:
-
-        vsh = (rt_shale / rt_log) * (rt_clean - rt_log) / (rt_clean - rt_shale)
-
-        If rt_log is greater than 2 * rt_shale, the shale volume is calculated using the formula:
-
-        vsh = 0.5 * (2 * vrt) ** (0.67 * (vrt + 1))
-
-        Otherwise, the shale volume is simply vrt.
-
-        Note:
-            - The resistivity logs are assumed to be in ohmm.
-            - The shale volume is returned in decimal units.
+            float: The volume of shale calculated from the ratio of resistivity logs.
         """
-        
         vrt = (rt_shale/rt_log)*(rt_clean-rt_log)/(rt_clean-rt_shale)
         if (rt_log > 2 * rt_shale):
-            vsh = 0.5 * (2 * vrt) ** (0.67*(vrt+1))
+            vclrt = 0.5 * (2 * vrt) ** (0.67*(vrt+1))
         else:
-            vsh = vrt
-        return vsh
+            vclrt = vrt
+        return vclrt
 
-    def shale_vol_from_neut_den(neut_log, den_log, neut_clean1, den_clean1, neut_clean2, den_clean2, neut_clay, den_clay):
-        """
-        A function to calculate shale volume based on neutron-density logs.
-        Parameters:
-            neut_log (float): Neutron log value.
-            den_log (float): Density log value.
-            neut_clean1 (float): Neutron clean1 value.
-            den_clean1 (float): Density clean1 value.
-            neut_clean2 (float): Neutron clean2 value.
-            den_clean2 (float): Density clean2 value.
-            neut_clay (float): Neutron clay value.
-            den_clay (float): Density clay value.
-        Returns:
-            float: The calculated shale volume.
-        """
+    def vsh_nd(neut_log, den_log, neut_clean1, den_clean1, neut_clean2, den_clean2, neut_clay, den_clay):
         term1 = (den_clean2-den_clean1)*(neut_log-neut_clean1)-(den_log-den_clean1)*(neut_clean2-neut_clean1)
         term2 = (den_clean2-den_clean1)*(neut_clay-neut_clean1)-(den_clay-den_clean1)*(neut_clean2-neut_clean1)
-        return term1/term2
-    
+        vclnd = term1/term2
+        return vclnd
 
     def vclay_from_vshale(vshale, multiplier=1.2):
         """
@@ -230,9 +202,11 @@ class petrophysics:
         Bhuyan, K. and Passey, Q. R. (1994) Clay estimation from GR and neutron-density porosity logs, SPWLA 35th Annual Logging Symposium, pp. 1–15.
         """
         return vshale * multiplier
+    
 
+class porosity:
 
-    def porosity_from_density(rhob, rhob_matrix=2.65, rhob_fluid=1, limit_result=True, low_limit=0, high_limit=0.5):
+    def porosity_total_from_density(den, den_matrix=2.65, den_fluid=1, limit_result=True, low_limit=0, high_limit=0.5):
         """
         Calculates the porosity from the bulk density using the petrophysics equation.
 
@@ -248,92 +222,125 @@ class petrophysics:
             None
         """
 
-        por = (rhob_matrix - rhob) / (rhob_matrix - rhob_fluid)
+        phit_d = (den_matrix - den) / (den_matrix - den_fluid)
 
         if limit_result is True:
-            return np.clip(por, low_limit, high_limit)
+            return np.clip(phit_d, low_limit, high_limit)
         else:
-            return por
-        return por
+            return phit_d
+        
+    def porosity_shale_from_density(den_shale, den_matrix, den_fl, limit_result=True, low_limit=0, high_limit=0.5):
+        phit_d_shale = (den_shale - den_matrix) / (den_fl - den_matrix)
+    
+        if limit_result is True:
+            return np.clip(phit_d_shale, low_limit, high_limit)
+        else:
+            return phit_d_shale
+    
+    def porosity_effective_from_density(den, den_matrix, den_fl, den_shale, vsh, limit_result=True, low_limit=0, high_limit=0.5):
+        phit_d = (den - den_matrix) / (den_fl - den_matrix)
+        phit_d_sh = (den_shale - den_matrix) / (den_fl - den_matrix)
+        phie_d = phit_d - vsh * phit_d_sh
+        
+        if limit_result is True:
+            return np.clip(phie_d, low_limit, high_limit)
+        else:
+            return phie_d
+
+
+    def porosity_shale_from_sonic_willie(dt_shale, dt_matrix, dt_fluid, limit_result=True, low_limit=0, high_limit=0.5):
+        '''
+        Willie-TimeAverage
+        '''
+        phit_s_shale = (dt_shale-dt_matrix)/(dt_fluid-dt_matrix)
+    
+        if limit_result is True:
+            return np.clip(phit_s_shale, low_limit, high_limit)
+        else:
+            return phit_s_shale
+
+
+    def porosity_total_from_sonic_willie(dt_log, dt_matrix, dt_fluid, cp = 1, limit_result=True, low_limit=0, high_limit=0.5):
+        '''
+        Willie-TimeAverage
+        '''
+        phit_s=(1/cp)*(dt_log-dt_matrix)/(dt_fluid-dt_matrix)
+
+        if limit_result is True:
+            return np.clip(phit_s, low_limit, high_limit)
+        else:
+            return phit_s
+    
+    def porosity_effective_from_sonic_willie(dt_log, dt_matrix, dt_fluid, dt_shale, vsh, cp = 1, limit_result=True, low_limit=0, high_limit=0.5):
+        '''
+        Willie-TimeAverage
+        '''
+        phit_s=(1/cp)*(dt_log-dt_matrix)/(dt_fluid-dt_matrix)
+        phit_s_sh = (dt_shale-dt_matrix)/(dt_fluid-dt_matrix)
+        phie_s = phit_s - vsh * phit_s_sh
+
+        if limit_result is True:
+            return np.clip(phie_s, low_limit, high_limit)
+        else:
+            return phie_s
     
     
-    def porosity_effective_from_neutron(neut_por_log, vsh_log, shale_porosity=0.3):
-        """
-        Calculate the effective porosity from a neutron porosity log and a shale log.
-
-        Parameters:
-            neut_por_log (float or array-like): The neutron porosity log values.
-            vsh_log (float or array-like): The shale log values.
-            shale_porosity (float, optional): The porosity value of the shale. Defaults to 0.3.
-
-        Returns:
-            float: The calculated effective porosity.
-        """
-        return neut_por_log - (vsh_log*shale_porosity)
+    def porosity_total_from_sonic_rhg(dt_log, dt_matrix, alpha = 0.67, limit_result=True, low_limit=0, high_limit=0.5):
+        '''
+        #Raymer-Hunt-Gardner (the alpha(5/8) ranges from 0.625-0.70, 0.67-most, 0.60-gas reservoirs)
+        '''
+        phit_s = (alpha)*(dt_log-dt_matrix)/(dt_log)
     
-    def porosity_effective_from_sonic(sonic_por_log, vsh_log, shale_porosity=0.3):
-        """
-        Calculate the effective porosity from a sonic porosity log and a shale log.
+        if limit_result is True:
+            return np.clip(phit_s, low_limit, high_limit)
+        else:
+            return phit_s
+    
+    def porosity_effective_from_acoustic_rhg(dt_log, dt_matrix, dt_fluid, dt_shale, vsh, alpha = 0.67, limit_result=True, low_limit=0, high_limit=0.5):
+        '''
+        #Raymer-Hunt-Gardner (the alpha(5/8) ranges from 0.625-0.70, 0.67-most, 0.60-gas reservoirs)
+        '''
+        phit_s = alpha * (dt_log-dt_matrix)/(dt_log)
+        phit_s_shale = (dt_shale-dt_matrix)/(dt_fluid-dt_matrix)
+        phie_s = phit_s - vsh * phit_s_shale
+        
+        if limit_result is True:
+            return np.clip(phie_s, low_limit, high_limit)
+        else:
+            return phie_s
+    
+    def porosity_effective_from_neutron(neut, neut_sh, vsh, limit_result=True, low_limit=0, high_limit=0.5):
+        phie_n = (neut-vsh*neut_sh)
 
-        Parameters:
-            sonic_por_log (float or array-like): The sonic porosity log values.
-            vsh_log (float or array-like): The shale log values.
-            shale_porosity (float, optional): The porosity value of the shale. Defaults to 0.3.
+        if limit_result is True:
+            return np.clip(phie_n, low_limit, high_limit)
+        else:
+            return phie_n
 
-        Returns:
-            float: The calculated effective porosity.
-        """
-        return sonic_por_log - (vsh_log*shale_porosity)
+        #Neutron-Density
+    def porosity_total_from_neutron_density(phin, phid):
+        phit_nd= (phin + phid) / 2
+        return phit_nd
 
+    def porosity_total_from_neutron_density_gas_corrected(phin, phid):
+        phit_nd_gas_corr = ((phin**2 + phid**2)/2)**(0.5)    #for gas intervals (nphi<dphi = crossover)
+        return phit_nd_gas_corr
 
+    
+
+class saturation:
 
     def sw_archie(porosity, rt, rw, archie_a = 1, archie_m = 2, archie_n = 2):
-        """
-        Calculate the water saturation using the Archie equation.
-
-        Parameters:
-            porosity (float): Porosity of the formation.
-            rt (float): True resistivity of the formation (ohmm).
-            rw (float): Formation water resistivity (ohmm).
-            archie_a (float, optional): Archie's parameter A (tortuosity factor, unitless). Defaults to 1.
-            archie_m (float, optional): Archie's parameter M (cementation constant, unitless). Defaults to 2.
-            archie_n (float, optional): Archie's parameter N (water saturation exponent, unitless). Defaults to 2.
-
-        Returns:
-            float: Water saturation calculated using the Archie equation.
-
+        '''
         References:
-        Archie, G. E., (1942). The Electrical Resistivity Log as an Aid in Determining Some 
-        Reservoir Characteristics. SPE Journal, 146 (1), pp. 54-62.
-        """
-        
+        Archimedes, R. C. (1994) Shale fluid properties. 3rd ed. London: John Wiley and Sons.
+        https://www.spec2000.net/01-quickmath.htm
+        '''
         sw = ((archie_a / (porosity ** archie_m)) * (rw/rt))**(1/archie_n)
         return sw
 
 
     def sw_simandoux(phie, rt, rw, vsh, rt_shale, archie_a = 1, archie_m = 2, archie_n = 2):
-        """
-        Calculate the water saturation using the Simandoux equation.
-
-        Parameters:
-            phie (float): Effective Porosity (fraction)
-            rt (float): True Resistivity (ohmm)
-            rw (float): Formation Water Resistivity (ohmm)
-            vsh (float): Bulk Volume Fraction of Shale (fraction)
-            rt_shale (float): Shale Resistivity (ohmm)
-            archie_a (float, optional): Archie's parameter A (tortuosity factor, unitless). Defaults to 1.
-            archie_m (float, optional): Archie's parameter M (cementation constant, unitless). Defaults to 2.
-            archie_n (float, optional): Archie's parameter N (water saturation exponent, unitless). Defaults to 2.
-
-        Returns:
-            float: Water saturation calculated using the Simandoux equation (fraction)
-
-        References:
-            Simandoux, P. (1963). Mesuresd ielectriques en milieu poreux, application a mesure des 
-            saturations en eau, Etude du Comportment des massifs Argileux. Supplementary Issue, 
-            Revue de I’Institut Francais du Petrol
-        """
-
         A = (1 - vsh) * archie_a * rw / (phie ** archie_m)
         B = A * vsh / (2 * rt_shale)
         C = A / rt
@@ -341,38 +348,130 @@ class petrophysics:
         sw = ((B ** 2 + C)**0.5 - B) ** (2 / archie_n)
         return sw
 
- 
-    def sw_waxman_smits(phie, vsh, resd, rw_ft, ft, a=1, m=2, n=2, dens_matrix=2.65):
-        """
-        Calculate water saturation from CEC method using the Waxman-Smits equation.
+    def sw_waxman_smits_temp(swb,fluid_density, salinity):
+        '''
+        Solve Qv from Swb based on Hill, Shirley and Klein technique (1979)
+        Parameters
+        ----------
+        fluid_density : float
+            Density of the fluid
+        Salinity : float
+            Salinity of the fluid in parts per million (ppm)
+         
+        References:
+        Hill, H.J., Shirley, O.J., Klein, G.E.: “Bound Water in Shaley Sands - Its Relation to Qv and Other Formation Properties”, Log Analyst, May-June 1979.
+        '''
+        qv = swb/(0.6425/((fluid_density*salinity)**0.5) + 0.22)
+        # m* apparent = log10(Rw /(Rt*(1 + Rw*B*Qv))) / log10(PHIT)
 
-        Parameters:
-            phie (float): Effective porosity (fractional).
-            vsh (float): Shale volume (fractional).
-            resd (float): Deep resistivity log reading (ohmm).
-            rw_ft (float): Water resistivity at formation temperature (ohmm).
-            ft (float): Formation temperature (degrees Fahrenheit or Celsius).
-            rw: Water resistivity at 25 degrees celsius (ohm-m)
-            a (float, optional): Formation factor (unitless). Default is 1.
-            m (float, optional): Cementation exponent (unitless). Default is 2.
-            n (float, optional): Saturation exponent (unitless). Default is 2.
-            dens_matrix (float, optional): Matrix density (gm/cc or kg/m3). Default is 2.65.
+    def sw_waxmansmits(rw, T, RwT, rt, PHIT, PHIE, den_fl, Swb, Rw75, Qv, B, m_cem = 2, mslope = 3):
+        '''
+        waxmansmits(Rw, Rt, PhiT, aa, mm, CEC)
+        **Waxman-Smits CEC method obtains Qv from Hill, Shirley and Klein
+          Eq solved for n=2
+        *Input parameters:
+         - PHIT - total porosity
+         - m_cem -  cementation exponent is adjusted for Swb
+         - Rw - formation water resistivity ohmm
+         - B - cation mobility (mho cm2 / meq)
+         - Qv - concentration of exchange cations per volume unit (meq/ml pore space)
+         - CEC - cation exchange capacity of shale(meq/100 gm of sample)
+         - den_ma - mineral graind density (g/cc)
+         - m_cem - best determined from SCAL      
+        *Returns:
+         - Sw_Total_WS - total water saturation from Waxman-Smits
+         - Sw_WS =(  ((1/PHIT**mstar)*Rw)/Rt*(1+Rw*B*QV)/Sw )**(1/nstar)
+         - RwT = T        # Temperature of Rw measument
+         - T = 150.       # Reservoir temperature in DegF
+         - TC=(T-32)/1.8  # Temp DegC
+        '''
+        
+        #convert m_cem to mstar with increase in mstar with increase in Swb
+        mstar = m_cem + mslope*Swb
 
-        Returns:
-            sw_cec (float): Water saturation from CEC method (fractional).
-        """
-        if phie > 0:
-            cec = 10 ** (1.9832 * vsh - 2.4473)
-            rw = (rw_ft) * (ft + 21.5) / 46.5
-            b = 4.6 * (1 - 0.6 * np.exp(-0.77 / rw))
-            f = a / (phie ** m)
-            qv = cec * (1 - phie) * dens_matrix / phie
-            sw_cec = 0.5 * ((- b * qv * rw) + ((b * qv * rw) ** 2 + 4 * f * rw_ft / resd) ** 0.5) ** (2 / n)
+        Rw75=((RwT+6.77)*rwa)/(75+6.77)
+
+        # Salinity in KPPM
+        SAL=(10**((3.562-math.log10(Rw75-0.0123))/0.955))/1000
+
+        B = math.exp(7.3-28.242/math.log(T)-0.2266*math.log(rwa)) 
+
+        Bdacy=(1-0.83*math.exp(-math.exp(-2.38+(42.17/TC))/rwa))*(-3.16+1.59*math.log(TC))**2 #SCA Paper SCA2006-29
+
+        #Crain's Waxman-Smits in lieu of using iterative. 
+        #Swc = 0.5 * ((- B * Qv * RW2) + ((B * Qv *  RW2)**2 + 4 * F * RW@FT / RESD) ^ 0.5)**(2 / N)
+        swT = 0.5 * (    (- B*Qv*Rw75) + (  (B*Qv*Rw75)**2  +  4*(1/PHIT**mstar)*rw/rt)**0.5)**(2/2)
+        return swT
+
+
+    
+    def sw_dualwater(Rw, T, RwT, Rt, PHIT, PHIE, Swb):
+        '''
+        dualwater(Rw, Rt, PHIT, por_shale, Vsh, Rsh)
+        **Dual-Water (clavier, 1977) with later modifications/rearrangements.
+          Formulas from Doveton "Principles of mathematical petrophysics"
+        *Input parameters:
+         - PHIT - total porosity
+         - por_shale - shale porosity
+         - Rw - formation water resistivity [ohmm]
+         - Swb - clay-bound water saturation 
+         - Sw_dw - total water saturation
+         *Returns:
+         - Sw_dw - Total water saturation (or water saturation in Total pore space)
+         - CBVWT - Coates DW CBW in Total Porossity system
+
+         1. Coates, G.R., Gardner, J.S., and Miller, D.L., 1994, 
+            Applying pulse-echo NMR to shaly sand formation evaluation, 
+            paper B, 35th Annual SPWLA Logging Symposium Transactions, 22 p.
+        '''
+
+        #--------------------------------------------------
+        #
+        #  BEGINNING OF MRIAN AS PROPOSED BY COATES, et al
+        #
+        #----- COMPUTE BASIC DATA -------------------------
+        #RwT = T
+        CW = (T+7.)/(Rw*(RwT+7.))
+        #----  CCW FROM COATES   
+        CCW = 0.000216*(T-16.7)*(T+504.4)
+        Ct   = 1/Rt
+        #--------------------------------------------------
+        #Swb = 1.0 - (PHIE/PHIT)
+        #Swia=BVI/PHIE, but no NMR BVI here
+        Swia = Swb #estimate
+        #--------------------------------------------------
+        CBW = Swb * PHIT
+        #----- COMPUTE DCW ------------------------------
+        ALPHA = 1 #for now with Salinity > 40,000 ppm
+        #DCWW=CW+ALPHA*Swb*(CCW-CW)
+        #        DCWI=CW+ALPHA*SWBI*(CCW-CW)
+        #----- W @ Sw = 1 -----------------------------------
+        #WW=math.log10(Ct/DCWW)/(math.log10(PHIT))
+        #----- W @ Sw AT BVI --------------------------------
+        #        WI=LOG10(CT/DCWI)/(LOG10(BVIT))
+        #----- THE ACTUAL W ---------------------------------
+        #Wq = 0.4*Swia + 1.65
+        Wq = 0.4*Swia + 1.9
+        #----- WW AND WI CONSTRAN W ------------------------
+        #----- COMPUTE CBVW TOTAL -----------------------
+        #AA=CW
+        #BB=ALPHA*(CBW)*(CW-CCW)
+        #CC=Ct
+        #CBVWA = (BB + math.sqrt(BB*BB + 4*AA*CC))/(2*AA)
+        CBVWA = (ALPHA*(CBW)*(CW-CCW) + ((ALPHA*(CBW)*(CW-CCW))**2 + 4*CW*Ct)**(1/2))/(2*CW)
+        CBVWT = CBVWA**(2/Wq)
+        #---- COMPUTE Bulk Volume Water CBVWE in Effective System ----------
+        #CBVWE = CBVWT-CBW    
+        Sw_dw = CBVWT/PHIT
+        return Sw_dw
+        #------------------------------------------------------------
+        #      END OF GEORGE COATES' MRIAN                                        
+        #-------------------------------------------------------------
+
+    def watervolume_from_watersaturation(sw, phit, limit_result=True, low_limit=0, high_limit=1):
+        bvw = sw * phit
+
+        if limit_result is True:
+            return np.clip(bvw, low_limit, high_limit)
         else:
-            sw_cec = 1
-        return sw_cec
-
-
-
-
-
+            return bvw
