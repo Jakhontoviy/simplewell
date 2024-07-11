@@ -2,7 +2,7 @@ import numpy as np
 from scipy.stats import gmean
 from sklearn.preprocessing import StandardScaler
 
-def thin_layers_removal(h_min, md_list):
+def thin_layers_removal_old(h_min, md_list):
     """
     Removes thin layers from the input list based on the specified minimum height difference.
     
@@ -17,6 +17,7 @@ def thin_layers_removal(h_min, md_list):
     if h_min > 0:
         i = 0
         while i < len(md_list) - 2:
+            print(md_list[i])
             if (md_list[i+1] - md_list[i]) < h_min:
                 if (md_list[i+1] - md_list[i]) > (md_list[i+2] - md_list[i+1]) and ((md_list[i+1] - md_list[i]) + (md_list[i+2] - md_list[i+1])) >= h_min:
                     del md_list[i+1]
@@ -33,6 +34,37 @@ def thin_layers_removal(h_min, md_list):
             else:
                 i += 1
     return md_list
+
+
+import numpy as np
+
+def thin_layers_removal(h_min, md_list):
+    """
+    Removes thin layers from the input list based on the specified minimum height difference.
+    
+    Parameters:
+        h_min: The minimum height difference required for layer removal.
+        md_list: The list of heights to be processed.
+        
+    Returns:
+        The modified list after removing the thin layers.
+    """
+    if h_min > 0:
+        md_list = list(md_list)  # Ensure md_list is a list
+        i = 0
+        while i < len(md_list) - 1:
+            if (md_list[i+1] - md_list[i]) < h_min:
+                if i + 2 < len(md_list) and (md_list[i+1] - md_list[i]) > (md_list[i+2] - md_list[i+1]) and ((md_list[i+1] - md_list[i]) + (md_list[i+2] - md_list[i+1])) >= h_min:
+                    del md_list[i+1]
+                elif i > 0 and (md_list[i] - md_list[i-1]) >= (md_list[i+2] - md_list[i+1]):
+                    del md_list[i]
+                else:
+                    del md_list[i+1]
+            else:
+                i += 1
+        md_list = np.array(md_list)  # Convert list back to numpy array
+    return md_list
+
 
 
 def layering(variable, H_min, percentile, sensitivity):
@@ -135,6 +167,8 @@ def calculate_averages(MD_list, variable, averaging):
                         averages.append(np.mean(interval_values))
                     elif averaging == 'Geometric':
                         averages.append(gmean(interval_values))
+                    elif averaging == 'Frequency':
+                        averages.append(np.argmax(np.bincount(interval_values)))
                     elif averaging == 'Median':
                         averages.append(np.median(interval_values))
                     elif averaging == 'Realistic':
