@@ -14,24 +14,6 @@ def chart1d_model(log, path):
     result = model(log)
     return result
 
-def chart2d_model_v1(x_log_ini, y_log_ini, path, show_chart=False):
-    chart = readXLSX(path)
-    x_chart = np.interp(chart['X'], (chart['X'].min(), chart['X'].max()), (-1, +1))
-    y_chart = np.interp(chart['Y'], (chart['Y'].min(), chart['Y'].max()), (-1, +1))
-    x_log = np.interp(x_log_ini, (chart['X'].min(), chart['X'].max()), (-1, +1))
-    y_log = np.interp(y_log_ini, (chart['Y'].min(), chart['Y'].max()), (-1, +1))
-    z_chart = chart['Z']
-    rbf = Rbf(x_chart, y_chart, z_chart, function="linear")
-    z_log_pred = rbf(x_log, y_log)
-    if show_chart == True:
-        log_points = {
-            'X': x_log_ini,
-            'Y': y_log_ini,
-            'Z': z_log_pred
-        }
-        plot_2d_chart(chart, log_points)
-    return z_log_pred
-
 def chart2d_model(x_log_ini, y_log_ini, path, show_chart=False):
     chart = readXLSX(path)
     x_min, x_max = chart['X'].min(), chart['X'].max()
