@@ -61,7 +61,7 @@ class precalculations:
         temp_formation = temp_surface + (temp_bottom - temp_surface) / temp_bottom_depth * depth
         return temp_formation
     
-    def weter_resistivity_from_salinity(salinity = 30, temp_formation = 80):
+    def resistivity_water_from_salinity(salinity = 30, temp_formation = 80):
         """
         Converts salinity to resistivity
         Parameters
@@ -114,7 +114,7 @@ class precalculations:
             rt_val = None
         return rt_val
     
-    def water_res_computation_archi(rt, phit, a = 1, m = 2, n = 2, sw = 1):
+    def resistivity_water_computation_archi(rt, phit, a = 1, m = 2, n = 2, sw = 1):
         """
         Calculate the water resistivity based on Dakhnov and Archi equation.
 
@@ -150,30 +150,3 @@ class precalculations:
         """
         return (sp_shale - sp)/(sp_shale - sp_sand)
     
-    def phit_from_ngk60(ngk):
-        chart = 'client\domain\Charts\Russian\PHIT_NGK-60.xlsx'
-        phit = chp.chart1d_model(ngk, chart)
-        return phit
-
-    def phit_from_dt_tnph(tnph, dt, show_chart=False):
-        """
-        Calculates the Porosity (PHIT) from the Compressional Slowness log (DT) and Termal Neutron Porosity Log (TNPH).
-
-        Args:
-            tnph (float): The Termal Neutron Porosity Log value.
-            dt (float): The Compressional Slowness log value.
-            show_chart (bool, optional): Whether to show the chart or not. Defaults to False.
-
-        Returns:
-            float: The calculated Porosity log value.
-
-        Raises:
-            None
-
-        Notes:
-            - The chart used for the calculation is 'client\domain\Charts\Russian\PHIT_DT_NPHI.xlsx'.
-            - The 'chart2d_model' function from the 'chp' module is used to perform the calculation.
-        """
-        chart = 'client\domain\Charts\Russian\PHIT_DT_NPHI_v1.xlsx'
-        phit = chp.chart2d_model(tnph, dt, chart, show_chart)
-        return phit
