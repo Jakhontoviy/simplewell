@@ -150,3 +150,26 @@ class precalculations:
         """
         return (sp_shale - sp)/(sp_shale - sp_sand)
     
+
+    def fzi_from_por_perm(por_val, perm_val, limit_result=False, low_limit=0, high_limit=20):
+        """
+        Calculate the Flow Zone Indicator (FZI) log from the Porosity (por_val) and Permeability (perm_val) logs.
+
+        Parameters:
+            por_val (float, v/v): The Porosity log value.
+            perm_val (float, mD): The Permeability log value.
+            limit_result (bool, optional): Whether to limit the result to a specified range. Defaults to False.
+            low_limit (float, optional, unitless): The lower limit of the result range. Defaults to 0.
+            high_limit (float, optional, unitless): The upper limit of the result range. Defaults to 20.
+
+        Returns:
+            float: The calculated Flow Zone Indicator log. If limit_result is True, the result is clipped to the specified range.
+        """
+        qz_val = por_val / (1 - por_val)
+        rqi_val = 0.0314 * ((perm_val / por_val)**(0.5))
+        fzi_val = rqi_val / qz_val
+
+        if limit_result is True:
+            return np.clip(fzi_val, low_limit, high_limit)
+        else:
+            return fzi_val

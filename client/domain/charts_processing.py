@@ -2,19 +2,27 @@ import numpy as np
 import pandas as pd
 from scipy.interpolate import Rbf
 import plotly.express as px
+from misc import *
 
-def readXLSX(filename):
-    #file_path = os.path.join(os.path.dirname(__file__), 'source', filename)
-    df = pd.read_excel(filename, header=0)
-    return df
 
 def chart1d_model(log, path):
+    """
+    Calculates a 1D model (polyline) based on the input log and the path to the data file.
+
+    Parameters:
+    - log: The log value to calculate the model for.
+    - path: The path to the data file containing the chart data.
+
+    Returns:
+    - The calculated result of the model.
+    """
     chart = readXLSX(path)
     model = np.poly1d(np.polyfit(chart['X'], chart['Y'], 4))
     result = model(log)
     return result
 
 def chart2d_model(x_log_ini, y_log_ini, path, show_chart=False):
+    
     chart = readXLSX(path)
     x_min, x_max = chart['X'].min(), chart['X'].max()
     y_min, y_max = chart['Y'].min(), chart['Y'].max()
@@ -39,10 +47,3 @@ def plot_2d_chart(chart_data, log_data):
     fig.add_scatter(x=log_data['X'], y=log_data['Y'], mode='markers', marker=dict(color=log_data['Z']), text=log_data['Z'])
     fig.show()
 
-
-def rescale_linear(array, new_min, new_max, minimum, maximum):
-    """Rescale an arrary linearly."""
-    #minimum, maximum = np.min(array), np.max(array)
-    m = (new_max - new_min) / (maximum - minimum)
-    b = new_min - m * minimum
-    return m * array + b

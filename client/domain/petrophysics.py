@@ -682,3 +682,39 @@ class saturation:
             return np.clip(bvw, low_limit, high_limit)
         else:
             return bvw
+
+class permeability:
+    '''
+    permeability equations
+    '''
+    def permeability_simple(por, a=2, b=5):
+        """
+        Calculates permeability based on the given porosity and coefficients.
+        
+        Parameters:
+            por (float or array, v/v): The porosity value.
+            a (int): Coefficient 'a' (default is 2).
+            b (int): Coefficient 'b' (default is 5).
+        
+        Returns:
+            float: The calculated permeability value.
+        """
+        perm = 10**(a + b * por)
+
+        return perm
+    
+    def permeability_koatsdumuar(por, swr = 0.3):
+        """
+        Calculates permeability based on the given porosity and water saturation ratio.
+        
+        Parameters:
+            por (float): The porosity value.
+            swr (float, optional): The water saturation ratio (default is 0.3).
+        
+        Returns:
+            float: The calculated permeability value.
+        """
+        
+        perm = 10 ** (2.546 + (4 * (np.log10(por/swr))))
+
+        return perm
