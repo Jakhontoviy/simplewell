@@ -591,7 +591,7 @@ class saturation:
          - TC=(T-32)/1.8  # Temp DegC
         '''
         
-        #convert m_cem to mstar with increase in mstar with increase in Swb
+        ''' #convert m_cem to mstar with increase in mstar with increase in Swb
         mstar = m_cem + mslope*Swb
 
         Rw75=((RwT+6.77)*rwa)/(75+6.77)
@@ -607,7 +607,7 @@ class saturation:
         #Swc = 0.5 * ((- B * Qv * RW2) + ((B * Qv *  RW2)**2 + 4 * F * RW@FT / RESD) ^ 0.5)**(2 / N)
         swT = 0.5 * (    (- B*Qv*Rw75) + (  (B*Qv*Rw75)**2  +  4*(1/PHIT**mstar)*rw/rt)**0.5)**(2/2)
         return swT
-
+        '''
 
     def sw_dualwater(Rw, T, RwT, Rt, PHIT, PHIE, Swb):
         '''
