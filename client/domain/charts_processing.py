@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from scipy.interpolate import Rbf
 import plotly.express as px
-from misc import *
+from client.domain.misc import *
 
 
 def chart1d_model(log, path):
