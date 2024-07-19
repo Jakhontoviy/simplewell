@@ -2,43 +2,57 @@ import numpy as np
 from scipy.stats import gmean
 from sklearn.preprocessing import StandardScaler
 
-def thin_layers_removal_old(h_min, md_list):
-    """
-    Removes thin layers from the input list based on the specified minimum height difference.
+def thin_layers_removal_ver2(ref, vals, h_min=0.4):
+    thickness_val = np.diff(ref)
+    thickness_val = np.append(thickness_val, np.nan)
+    mask = thickness_val >= h_min
+    litho_hmin_val = vals.copy()
+    ref = ref.copy()
+
+    # Identify intervals with thickness < threshold
+    small_intervals = np.where(~mask)[0]
+
+    # Dissolve small intervals into neighboring intervals
+    for i in small_intervals:
+        if i > 0 and mask[i-1]:
+            litho_hmin_val[i] = litho_hmin_val[i-1]
+        elif i < len(mask) - 1 and mask[i+1]:
+            litho_hmin_val[i] = litho_hmin_val[i+1]
+
+    ref_hmin = np.delete(ref, small_intervals)
+    vals_hmin = np.delete(litho_hmin_val, small_intervals)
+    return ref_hmin, vals_hmin
+
+
+def thin_layers_removal_ver3(ref, vals, h_min=0.4):
+    thickness_val = np.diff(ref)
+    thickness_val = np.append(thickness_val, np.nan)
+    thickness_val_sorted = np.sort(thickness_val)
+    thickness_val_sorted_unique = np.unique(thickness_val_sorted)
     
-    Parameters:
-        h_min: The minimum height difference required for layer removal.
-        md_list: The list of heights to be processed.
-        
-    Returns:
-        The modified list after removing the thin layers.
-    """
-    ZN_list = []
-    if h_min > 0:
-        i = 0
-        while i < len(md_list) - 2:
-            print(md_list[i])
-            if (md_list[i+1] - md_list[i]) < h_min:
-                if (md_list[i+1] - md_list[i]) > (md_list[i+2] - md_list[i+1]) and ((md_list[i+1] - md_list[i]) + (md_list[i+2] - md_list[i+1])) >= h_min:
-                    del md_list[i+1]
-                    if i+1 < len(ZN_list):  # Check if index is within ZN_list length
-                        del ZN_list[i+1]
-                elif (md_list[i] - md_list[i-1]) >= (md_list[i+2] - md_list[i+1]):
-                    del md_list[i]
-                    if i < len(ZN_list):  # Check if index is within ZN_list length
-                        del ZN_list[i]
-                else:
-                    del md_list[i+1]
-                    if i+1 < len(ZN_list):  # Check if index is within ZN_list length
-                        del ZN_list[i+1]
-            else:
-                i += 1
-    return md_list
+    
+    for sm_interval in thickness_val_sorted_unique:
+        if sm_interval < h_min:
+            #print(sm_interval)
+            mask = thickness_val <= sm_interval
+            small_intervals = np.where(mask)[0]
+            litho_hmin_val = vals.copy()
+            ref = ref.copy()
+            # Dissolve small intervals into neighboring intervals
+            for i in small_intervals:
+                if i > 0 and mask[i-1]:
+                    litho_hmin_val[i] = litho_hmin_val[i-1]
+                elif i < len(mask) - 1 and mask[i+1]:
+                    litho_hmin_val[i] = litho_hmin_val[i+1]
+
+            ref_hmin = np.delete(ref, small_intervals)
+            litho_hmin_val = np.delete(litho_hmin_val, small_intervals)
+        else:
+            continue
+    return ref_hmin, litho_hmin_val
 
 
-import numpy as np
-
-def thin_layers_removal(h_min, md_list):
+def thin_layers_removal_ver1(md_list, h_min=0.4):
     """
     Removes thin layers from the input list based on the specified minimum height difference.
     
@@ -53,7 +67,7 @@ def thin_layers_removal(h_min, md_list):
         md_list = list(md_list)  # Ensure md_list is a list
         i = 0
         while i < len(md_list) - 1:
-            if (md_list[i+1] - md_list[i]) < h_min:
+            if (md_list[i+1] - md_list[i]) < h_min and (i < len(md_list) - 2):
                 if i + 2 < len(md_list) and (md_list[i+1] - md_list[i]) > (md_list[i+2] - md_list[i+1]) and ((md_list[i+1] - md_list[i]) + (md_list[i+2] - md_list[i+1])) >= h_min:
                     del md_list[i+1]
                 elif i > 0 and (md_list[i] - md_list[i-1]) >= (md_list[i+2] - md_list[i+1]):
